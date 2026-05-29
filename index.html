@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hinsy Ballard Exploration</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green: #22c55e;
+      --red: #ef4444;
+      --bg: #f8f7f4;
+      --surface: #ffffff;
+      --border: #e2e0db;
+      --text: #1a1a1a;
+      --muted: #6b6b6b;
+      --accent: #3b5bdb;
+      --accent-hover: #2f4ac4;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Auth screen ── */
+    #auth-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .auth-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+    }
+
+    .auth-card h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .auth-card p {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-bottom: 28px;
+    }
+
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .field input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus { border-color: var(--accent); }
+
+    .btn {
+      width: 100%;
+      padding: 11px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 4px;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    #auth-error {
+      color: var(--red);
+      font-size: 0.85rem;
+      margin-top: 12px;
+      display: none;
+    }
+
+    /* ── Main app ── */
+    #app { display: none; }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 1.1rem; font-weight: 700; }
+
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    .user-email { font-size: 0.82rem; color: var(--muted); }
+
+    .btn-sm {
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-sm:hover { background: var(--bg); }
+
+    main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+    /* ── Map ── */
+    #map {
+      height: 480px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-bottom: 28px;
+      z-index: 0;
+    }
+
+    /* ── Legend ── */
+    .legend {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+    .legend-item { display: flex; align-items: center; gap: 7px; font-size: 0.85rem; }
+    .legend-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── Table section ── */
+    .table-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .table-header h2 { font-size: 1rem; font-weight: 700; }
+
+    .save-status { font-size: 0.82rem; color: var(--muted); }
+    .save-status.saving { color: var(--accent); }
+    .save-status.saved { color: var(--green); }
+    .save-status.error { color: var(--red); }
+
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    thead th {
+      background: var(--bg);
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #fafaf8; }
+
+    tbody td { padding: 8px 14px; vertical-align: middle; }
+
+    tbody td input,
+    tbody td select {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      font-size: 0.875rem;
+      background: transparent;
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    tbody td input:focus,
+    tbody td select:focus {
+      border-color: var(--accent);
+      background: var(--surface);
+    }
+
+    tbody td input:hover,
+    tbody td select:hover {
+      border-color: var(--border);
+      background: var(--bg);
+    }
+
+    .visited-y { color: var(--green); font-weight: 600; }
+    .visited-n { color: var(--red); font-weight: 600; }
+
+    .rating-cell input { text-align: center; }
+
+    /* loading / empty */
+    .table-placeholder {
+      padding: 40px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    /* custom leaflet icon colors */
+    .marker-visited   { filter: hue-rotate(120deg) saturate(1.5); }
+    .marker-unvisited { filter: hue-rotate(0deg)   saturate(1.5); }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     AUTH SCREEN
+══════════════════════════════════════════ -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <h1>Ballard Exploration</h1>
+    <p>Sign in to view and edit the map</p>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="btn" id="sign-in-btn" onclick="signIn()">Sign In</button>
+    <div id="auth-error"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MAIN APP
+══════════════════════════════════════════ -->
+<div id="app">
+  <header>
+    <h1>🗺 Ballard Exploration</h1>
+    <div class="header-right">
+      <span class="user-email" id="user-email-display"></span>
+      <button class="btn-sm" onclick="signOut()">Sign Out</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <strong style="font-size:0.85rem">Legend:</strong>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--green)"></div>
+        <span>Visited</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--red)"></div>
+        <span>Not visited</span>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-header">
+      <h2>Businesses</h2>
+      <span class="save-status" id="save-status"></span>
+    </div>
+
+    <div class="table-wrap">
+      <table id="biz-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Lat, Lon</th>
+            <th>Visited</th>
+            <th>Mira Rating</th>
+            <th>Luke Rating</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr><td colspan="5" class="table-placeholder">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIGURATION — replace these placeholders
+// ══════════════════════════════════════════
+const SUPABASE_URL    = 'YOUR_SUPABASE_URL';        // e.g. https://xxxx.supabase.co
+const SUPABASE_ANON   = 'YOUR_SUPABASE_ANON_KEY';   // anon/public key
+const TABLE_NAME      = 'YOUR_TABLE_NAME';           // e.g. businesses
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+let map, rows = [], markers = {};
+
+// Restore session on load
+supabase.auth.getSession().then(({ data: { session } }) => {
+  if (session) showApp(session.user);
+});
+
+supabase.auth.onAuthStateChange((_event, session) => {
+  if (session) showApp(session.user);
+  else         showAuth();
+});
+
+// ══════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════
+async function signIn() {
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const btn      = document.getElementById('sign-in-btn');
+  const errEl    = document.getElementById('auth-error');
+
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  btn.disabled = false;
+  btn.textContent = 'Sign In';
+
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function signOut() {
+  await supabase.auth.signOut();
+}
+
+// Allow Enter key to trigger sign in
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && document.getElementById('auth-screen').style.display !== 'none') {
+    signIn();
+  }
+});
+
+// ══════════════════════════════════════════
+// SHOW / HIDE SCREENS
+// ══════════════════════════════════════════
+function showApp(user) {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-email-display').textContent = user.email;
+
+  if (!map) initMap();
+  loadData();
+}
+
+function showAuth() {
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+// ══════════════════════════════════════════
+// MAP
+// ══════════════════════════════════════════
+function initMap() {
+  map = L.map('map').setView([47.6762, -122.3839], 14); // Ballard, Seattle
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19
+  }).addTo(map);
+}
+
+function makeIcon(visited) {
+  const color = (visited === 'Y') ? '#22c55e' : '#ef4444';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+    <path d="M14 0C6.27 0 0 6.27 0 14c0 9.63 14 22 14 22S28 23.63 28 14C28 6.27 21.73 0 14 0z"
+      fill="${color}" stroke="#fff" stroke-width="2"/>
+    <circle cx="14" cy="14" r="6" fill="#fff" opacity="0.9"/>
+  </svg>`;
+  return L.divIcon({
+    html: svg,
+    className: '',
+    iconSize:   [28, 36],
+    iconAnchor: [14, 36],
+    popupAnchor:[0, -36]
+  });
+}
+
+function parseLatLon(val) {
+  if (!val) return null;
+  const parts = String(val).split(',').map(s => parseFloat(s.trim()));
+  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+    return { lat: parts[0], lon: parts[1] };
+  }
+  return null;
+}
+
+function renderMarkers() {
+  // Clear old markers
+  Object.values(markers).forEach(m => m.remove());
+  markers = {};
+
+  rows.forEach(row => {
+    const pos = parseLatLon(row.latlon);
+    if (!pos) return;
+
+    const mira = row.mira_rating ?? '—';
+    const luke = row.luke_rating ?? '—';
+    const visited = row.visited === 'Y' ? '✅ Visited' : '❌ Not visited';
+
+    const marker = L.marker([pos.lat, pos.lon], { icon: makeIcon(row.visited) })
+      .bindPopup(`
+        <div style="min-width:160px;font-family:-apple-system,sans-serif">
+          <strong style="font-size:0.95rem">${escHtml(row.name || '')}</strong>
+          <div style="margin-top:6px;font-size:0.82rem;color:#555">${visited}</div>
+          <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:0.82rem">
+            <div><span style="color:#888">Mira</span><br><strong>${escHtml(String(mira))}</strong></div>
+            <div><span style="color:#888">Luke</span><br><strong>${escHtml(String(luke))}</strong></div>
+          </div>
+        </div>
+      `)
+      .addTo(map);
+
+    markers[row.id] = marker;
+  });
+}
+
+// ══════════════════════════════════════════
+// DATA — load
+// ══════════════════════════════════════════
+async function loadData() {
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="table-placeholder">Loading…</td></tr>';
+
+  const { data, error } = await supabase
+    .from(TABLE_NAME)
+    .select('*')
+    .order('name', { ascending: true });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="5" class="table-placeholder" style="color:var(--red)">Error: ${escHtml(error.message)}</td></tr>`;
+    return;
+  }
+
+  rows = data || [];
+
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="table-placeholder">No businesses found.</td></tr>';
+    return;
+  }
+
+  renderTable();
+  renderMarkers();
+}
+
+// ══════════════════════════════════════════
+// TABLE — render
+// ══════════════════════════════════════════
+function renderTable() {
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '';
+
+  rows.forEach((row, idx) => {
+    const tr = document.createElement('tr');
+    tr.dataset.id = row.id;
+
+    tr.innerHTML = `
+      <td><input type="text" value="${escAttr(row.name || '')}" data-field="name" data-idx="${idx}" /></td>
+      <td><input type="text" value="${escAttr(row.latlon || '')}" data-field="latlon" data-idx="${idx}" placeholder="lat, lon" /></td>
+      <td>
+        <select data-field="visited" data-idx="${idx}">
+          <option value="Y" ${row.visited === 'Y' ? 'selected' : ''}>Y</option>
+          <option value="N" ${row.visited !== 'Y' ? 'selected' : ''}>N</option>
+        </select>
+      </td>
+      <td class="rating-cell"><input type="text" value="${escAttr(row.mira_rating ?? '')}" data-field="mira_rating" data-idx="${idx}" placeholder="—" /></td>
+      <td class="rating-cell"><input type="text" value="${escAttr(row.luke_rating ?? '')}" data-field="luke_rating" data-idx="${idx}" placeholder="—" /></td>
+    `;
+
+    // Attach change listeners
+    tr.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('change', onCellChange);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+// ══════════════════════════════════════════
+// TABLE — cell change → save to Supabase
+// ══════════════════════════════════════════
+let saveTimer = null;
+
+async function onCellChange(e) {
+  const el    = e.target;
+  const field = el.dataset.field;
+  const idx   = parseInt(el.dataset.idx, 10);
+  const value = el.value;
+
+  // Update local rows
+  rows[idx][field] = value;
+
+  // Refresh the marker for this row if map-relevant fields changed
+  if (['latlon', 'visited', 'name', 'mira_rating', 'luke_rating'].includes(field)) {
+    updateMarker(rows[idx]);
+  }
+
+  // Debounce writes — wait 600 ms after last change
+  clearTimeout(saveTimer);
+  setStatus('saving', 'Saving…');
+  saveTimer = setTimeout(() => saveRow(rows[idx]), 600);
+}
+
+async function saveRow(row) {
+  const { error } = await supabase
+    .from(TABLE_NAME)
+    .update({
+      name:        row.name,
+      latlon:      row.latlon,
+      visited:     row.visited,
+      mira_rating: row.mira_rating,
+      luke_rating: row.luke_rating,
+    })
+    .eq('id', row.id);
+
+  if (error) {
+    setStatus('error', 'Save failed: ' + error.message);
+  } else {
+    setStatus('saved', 'Saved ✓');
+    setTimeout(() => setStatus('', ''), 2500);
+  }
+}
+
+function updateMarker(row) {
+  if (markers[row.id]) markers[row.id].remove();
+  const pos = parseLatLon(row.latlon);
+  if (!pos) { delete markers[row.id]; return; }
+
+  const mira = row.mira_rating ?? '—';
+  const luke = row.luke_rating ?? '—';
+  const visited = row.visited === 'Y' ? '✅ Visited' : '❌ Not visited';
+
+  markers[row.id] = L.marker([pos.lat, pos.lon], { icon: makeIcon(row.visited) })
+    .bindPopup(`
+      <div style="min-width:160px;font-family:-apple-system,sans-serif">
+        <strong style="font-size:0.95rem">${escHtml(row.name || '')}</strong>
+        <div style="margin-top:6px;font-size:0.82rem;color:#555">${visited}</div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:0.82rem">
+          <div><span style="color:#888">Mira</span><br><strong>${escHtml(String(mira))}</strong></div>
+          <div><span style="color:#888">Luke</span><br><strong>${escHtml(String(luke))}</strong></div>
+        </div>
+      </div>
+    `)
+    .addTo(map);
+}
+
+// ══════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════
+function setStatus(cls, msg) {
+  const el = document.getElementById('save-status');
+  el.className = 'save-status ' + cls;
+  el.textContent = msg;
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function escAttr(str) {
+  return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+</script>
+</body>
+</html>
