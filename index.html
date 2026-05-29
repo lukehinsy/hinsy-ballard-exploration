@@ -430,7 +430,36 @@
       text-transform: uppercase;
     }
 
-    .rating-cell input { text-align: center; }
+    .rating-cell { text-align: center; font-weight: 600; color: var(--amber); }
+    .rating-cell.empty { color: var(--muted); font-weight: 400; }
+
+    .cell-y   { color: var(--green); font-weight: 700; font-size: 0.8rem; }
+    .cell-n   { color: var(--red);   font-weight: 700; font-size: 0.8rem; opacity: 0.75; }
+    .cell-nil { color: var(--muted); font-size: 0.8rem; }
+
+    .row-actions { display: flex; gap: 5px; justify-content: flex-end; }
+
+    .btn-row {
+      padding: 4px 10px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      border-radius: 4px;
+      border: 1px solid var(--border-lit);
+      background: transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+
+    .btn-row-view { color: var(--amber); }
+    .btn-row-view:hover { background: rgba(200,134,10,0.12); border-color: var(--amber-dim); }
+
+    .btn-row-edit { color: var(--cream-dim); }
+    .btn-row-edit:hover { background: var(--navy-light); color: var(--cream); }
+
+    thead th.actions-col { text-align: right; }
 
     /* filter row */
     thead tr.filter-row th {
@@ -794,14 +823,13 @@
             <th>Category</th>
             <th>Visited</th>
             <th>Dog Friendly</th>
-            <th>Mira Rating</th>
-            <th>Mira Review</th>
-            <th>Luke Rating</th>
-            <th>Luke Review</th>
+            <th>Mira ★</th>
+            <th>Luke ★</th>
+            <th class="actions-col"></th>
           </tr>
           <tr class="filter-row">
-            <th><input type="text"   data-filter="Name"         placeholder="Filter…" /></th>
-            <th><input type="text"   data-filter="Category"     placeholder="Filter…" /></th>
+            <th><input type="text" data-filter="Name"         placeholder="Filter…" /></th>
+            <th><input type="text" data-filter="Category"     placeholder="Filter…" /></th>
             <th>
               <select data-filter="Visited">
                 <option value="">All</option>
@@ -816,14 +844,13 @@
                 <option value="N">N</option>
               </select>
             </th>
-            <th><input type="number" data-filter="Mira Rating"  placeholder="≥" step="0.1" min="0" max="10" /></th>
-            <th><input type="text"   data-filter="Mira Review"  placeholder="Filter…" /></th>
-            <th><input type="number" data-filter="Luke Rating"  placeholder="≥" step="0.1" min="0" max="10" /></th>
-            <th><input type="text"   data-filter="Luke Review"  placeholder="Filter…" /></th>
+            <th><input type="number" data-filter="Mira Rating" placeholder="≥" step="0.1" min="0" max="10" /></th>
+            <th><input type="number" data-filter="Luke Rating" placeholder="≥" step="0.1" min="0" max="10" /></th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="table-body">
-          <tr><td colspan="8" class="table-placeholder">Loading…</td></tr>
+          <tr><td colspan="7" class="table-placeholder">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -1069,7 +1096,7 @@ function renderMarkers() {
 // ══════════════════════════════════════════
 async function loadData() {
   const tbody = document.getElementById('table-body');
-  tbody.innerHTML = '<tr><td colspan="8" class="table-placeholder">Loading spots…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" class="table-placeholder">Loading spots…</td></tr>';
 
   const { data, error } = await db
     .from(TABLE_NAME)
@@ -1077,13 +1104,13 @@ async function loadData() {
     .order('Name', { ascending: true });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="8" class="table-placeholder" style="color:#e07060">Error: ${escHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="table-placeholder" style="color:#e07060">Error: ${escHtml(error.message)}</td></tr>`;
     return;
   }
 
   rows = data || [];
   if (rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="table-placeholder">No spots found — add some to Supabase!</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="table-placeholder">No spots found — add some to Supabase!</td></tr>';
     return;
   }
 
@@ -1128,7 +1155,7 @@ function getFilteredRows() {
 }
 
 // ══════════════════════════════════════════
-// TABLE
+// TABLE (read-only + action buttons)
 // ══════════════════════════════════════════
 function renderTable() {
   const tbody   = document.getElementById('table-body');
@@ -1136,7 +1163,7 @@ function renderTable() {
   tbody.innerHTML = '';
 
   if (visible.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="table-placeholder">No matches — try clearing a filter.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="table-placeholder">No matches — try clearing a filter.</td></tr>';
     return;
   }
 
@@ -1144,69 +1171,59 @@ function renderTable() {
     const idx = rows.indexOf(row);
     const tr  = document.createElement('tr');
     tr.dataset.id = row.id;
-    const ynSelect = (field) => `
-      <select data-field="${field}" data-idx="${idx}">
-        <option value="" ${!row[field] ? 'selected' : ''}>—</option>
-        <option value="Y" ${row[field] === 'Y' ? 'selected' : ''}>Y</option>
-        <option value="N" ${row[field] === 'N' ? 'selected' : ''}>N</option>
-      </select>`;
+
+    const yn = (v) => v === 'Y'
+      ? '<span class="cell-y">Y</span>'
+      : v === 'N' ? '<span class="cell-n">N</span>'
+      : '<span class="cell-nil">—</span>';
+
+    const rating = (v) => (v !== null && v !== undefined && v !== '')
+      ? `<span class="rating-cell">${v}</span>`
+      : '<span class="cell-nil">—</span>';
+
+    const hasLatLon = !!parseLatLon(row['latlon']);
+
     tr.innerHTML = `
-      <td><input type="text" value="${escAttr(row['Name'] || '')}"         data-field="Name"        data-idx="${idx}" /></td>
-      <td><input type="text" value="${escAttr(row['Category'] || '')}"     data-field="Category"    data-idx="${idx}" /></td>
-      <td>${ynSelect('Visited')}</td>
-      <td>${ynSelect('Dog Friendly')}</td>
-      <td class="rating-cell"><input type="number" step="0.1" min="0" max="10" value="${escAttr(row['Mira Rating'] ?? '')}" data-field="Mira Rating" data-idx="${idx}" placeholder="—" /></td>
-      <td><input type="text" value="${escAttr(row['Mira Review'] || '')}"  data-field="Mira Review" data-idx="${idx}" placeholder="Add review…" /></td>
-      <td class="rating-cell"><input type="number" step="0.1" min="0" max="10" value="${escAttr(row['Luke Rating'] ?? '')}" data-field="Luke Rating" data-idx="${idx}" placeholder="—" /></td>
-      <td><input type="text" value="${escAttr(row['Luke Review'] || '')}"  data-field="Luke Review" data-idx="${idx}" placeholder="Add review…" /></td>
+      <td>${escHtml(row['Name'] || '')}</td>
+      <td>${row['Category'] ? escHtml(row['Category']) : '<span class="cell-nil">—</span>'}</td>
+      <td style="text-align:center">${yn(row['Visited'])}</td>
+      <td style="text-align:center">${yn(row['Dog Friendly'])}</td>
+      <td style="text-align:center">${rating(row['Mira Rating'])}</td>
+      <td style="text-align:center">${rating(row['Luke Rating'])}</td>
+      <td>
+        <div class="row-actions">
+          ${hasLatLon ? `<button class="btn-row btn-row-view" onclick="highlightOnMap(${row.id})">📍 View</button>` : ''}
+          <button class="btn-row btn-row-edit" onclick="openEditModal(${idx})">Edit</button>
+        </div>
+      </td>
     `;
-    tr.querySelectorAll('input, select').forEach(el => el.addEventListener('change', onCellChange));
     tbody.appendChild(tr);
   });
 }
 
 // ══════════════════════════════════════════
-// SAVE
+// SAVE (called from modal)
 // ══════════════════════════════════════════
-const saveTimers = {};
-
-async function onCellChange(e) {
-  const el    = e.target;
-  const field = el.dataset.field;
-  const idx   = parseInt(el.dataset.idx, 10);
-
-  rows[idx][field] = el.value;
-
-  if (['latlon','Visited','Name','Mira Rating','Luke Rating','Mira Review','Luke Review','Dog Friendly'].includes(field)) updateMarker(rows[idx]);
-
-  const rowId = rows[idx].id;
-  clearTimeout(saveTimers[rowId]);
-  setStatus('saving', 'Saving…');
-  saveTimers[rowId] = setTimeout(() => saveRow(rows[idx]), 600);
-}
-
 async function saveRow(row) {
   const { error } = await db
     .from(TABLE_NAME)
     .update({
       'Name':         row['Name'],
-      'Category':     row['Category'],
-      'latlon':       row['latlon'],
+      'Category':     row['Category'] || null,
+      'latlon':       row['latlon'] || null,
       'Visited':      row['Visited'] || null,
       'Dog Friendly': row['Dog Friendly'] || null,
-      'Mira Rating':  row['Mira Rating'] !== '' ? row['Mira Rating'] : null,
-      'Luke Rating':  row['Luke Rating'] !== '' ? row['Luke Rating'] : null,
-      'Mira Review':  row['Mira Review'],
-      'Luke Review':  row['Luke Review'],
+      'Mira Rating':  (row['Mira Rating'] !== '' && row['Mira Rating'] !== null) ? row['Mira Rating'] : null,
+      'Luke Rating':  (row['Luke Rating'] !== '' && row['Luke Rating'] !== null) ? row['Luke Rating'] : null,
+      'Mira Review':  row['Mira Review'] || null,
+      'Luke Review':  row['Luke Review'] || null,
     })
     .eq('id', row.id);
 
-  if (error) {
-    setStatus('error', 'Save failed');
-  } else {
-    setStatus('saved', 'Saved ✓');
-    setTimeout(() => setStatus('', ''), 2500);
-  }
+  if (error) { setStatus('error', 'Save failed'); return false; }
+  setStatus('saved', 'Saved ✓');
+  setTimeout(() => setStatus('', ''), 2500);
+  return true;
 }
 
 function updateMarker(row) {
@@ -1216,6 +1233,33 @@ function updateMarker(row) {
   markers[row.id] = L.marker([pos.lat, pos.lon], { icon: makeIcon(row['Visited']) })
     .bindPopup(buildPopup(row))
     .addTo(map);
+  applyLegendHighlight();
+}
+
+// ══════════════════════════════════════════
+// MAP HIGHLIGHT
+// ══════════════════════════════════════════
+function makeHighlightIcon() {
+  return L.divIcon({
+    html: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 26 34">
+      <path d="M13 0C5.82 0 0 5.82 0 13c0 8.94 13 21 13 21S26 21.94 26 13C26 5.82 20.18 0 13 0z"
+        fill="#c8860a" stroke="#fff" stroke-width="2"/>
+      <circle cx="13" cy="13" r="5.5" fill="#f5e08a" opacity="0.95"/>
+    </svg>`,
+    className: '', iconSize: [32, 42], iconAnchor: [16, 42], popupAnchor: [0, -44]
+  });
+}
+
+function highlightOnMap(rowId) {
+  const row    = rows.find(r => r.id === rowId);
+  const marker = markers[rowId];
+  if (!row || !marker) return;
+  const pos = parseLatLon(row['latlon']);
+  if (!pos) return;
+  map.flyTo([pos.lat, pos.lon], 17, { duration: 0.9 });
+  marker.setIcon(makeHighlightIcon());
+  marker.openPopup();
+  setTimeout(() => marker.setIcon(makeIcon(row['Visited'])), 2500);
 }
 
 // ══════════════════════════════════════════
@@ -1238,22 +1282,42 @@ function escAttr(str) {
 }
 
 // ══════════════════════════════════════════
-// ADD BUSINESS MODAL
+// ADD / EDIT MODAL
 // ══════════════════════════════════════════
-function openAddModal() {
-  // Reset form
-  ['f-name','f-category','f-latlon','f-mira-review','f-luke-review'].forEach(id => {
-    document.getElementById(id).value = '';
-  });
-  ['f-visited','f-dog'].forEach(id => {
-    document.getElementById(id).value = '';
-  });
-  ['f-mira-rating','f-luke-rating'].forEach(id => {
-    document.getElementById(id).value = '';
-  });
+let currentEditIdx = null; // null = adding, number = editing
+
+function resetModal() {
+  ['f-name','f-category','f-latlon','f-mira-review','f-luke-review'].forEach(id => document.getElementById(id).value = '');
+  ['f-visited','f-dog','f-mira-rating','f-luke-rating'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('geo-results').classList.remove('visible');
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('modal-submit-btn').disabled = false;
+}
+
+function openAddModal() {
+  currentEditIdx = null;
+  resetModal();
+  document.querySelector('.modal-title').textContent = 'Add a Business';
   document.getElementById('modal-submit-btn').textContent = 'Add Business';
+  document.getElementById('add-modal').classList.add('open');
+  document.getElementById('f-name').focus();
+}
+
+function openEditModal(idx) {
+  currentEditIdx = idx;
+  const row = rows[idx];
+  resetModal();
+  document.getElementById('f-name').value         = row['Name']         || '';
+  document.getElementById('f-category').value     = row['Category']     || '';
+  document.getElementById('f-latlon').value        = row['latlon']       || '';
+  document.getElementById('f-visited').value       = row['Visited']      || '';
+  document.getElementById('f-dog').value           = row['Dog Friendly'] || '';
+  document.getElementById('f-mira-rating').value  = row['Mira Rating']  ?? '';
+  document.getElementById('f-luke-rating').value  = row['Luke Rating']  ?? '';
+  document.getElementById('f-mira-review').value  = row['Mira Review']  || '';
+  document.getElementById('f-luke-review').value  = row['Luke Review']  || '';
+  document.querySelector('.modal-title').textContent = 'Edit Business';
+  document.getElementById('modal-submit-btn').textContent = 'Save Changes';
   document.getElementById('add-modal').classList.add('open');
   document.getElementById('f-name').focus();
 }
@@ -1272,14 +1336,10 @@ document.addEventListener('keydown', (e) => {
 
 async function submitNewBusiness() {
   const name = document.getElementById('f-name').value.trim();
-  if (!name) {
-    showModalError('Name is required.');
-    return;
-  }
+  if (!name) { showModalError('Name is required.'); return; }
 
   const miraRating = document.getElementById('f-mira-rating').value;
   const lukeRating = document.getElementById('f-luke-rating').value;
-
   const payload = {
     'Name':         name,
     'Category':     document.getElementById('f-category').value.trim() || null,
@@ -1294,29 +1354,30 @@ async function submitNewBusiness() {
 
   const btn = document.getElementById('modal-submit-btn');
   btn.disabled = true;
-  btn.textContent = 'Adding…';
 
-  const { data, error } = await db
-    .from(TABLE_NAME)
-    .insert(payload)
-    .select()
-    .single();
-
-  if (error) {
-    showModalError(error.message);
-    btn.disabled = false;
-    btn.textContent = 'Add Business';
-    return;
+  if (currentEditIdx !== null) {
+    // ── EDIT existing row ──
+    btn.textContent = 'Saving…';
+    const row = rows[currentEditIdx];
+    Object.assign(row, payload);
+    const ok = await saveRow(row);
+    if (!ok) { showModalError('Save failed — try again.'); btn.disabled = false; btn.textContent = 'Save Changes'; return; }
+    updateMarker(row);
+    closeAddModal();
+    renderTable();
+  } else {
+    // ── INSERT new row ──
+    btn.textContent = 'Adding…';
+    const { data, error } = await db.from(TABLE_NAME).insert(payload).select().single();
+    if (error) { showModalError(error.message); btn.disabled = false; btn.textContent = 'Add Business'; return; }
+    rows.push(data);
+    rows.sort((a, b) => (a['Name'] || '').localeCompare(b['Name'] || ''));
+    closeAddModal();
+    renderTable();
+    renderMarkers();
+    setStatus('saved', 'Added ✓');
+    setTimeout(() => setStatus('', ''), 2500);
   }
-
-  // Add to local state and re-render
-  rows.push(data);
-  rows.sort((a, b) => (a['Name'] || '').localeCompare(b['Name'] || ''));
-  closeAddModal();
-  renderTable();
-  renderMarkers();
-  setStatus('saved', 'Added ✓');
-  setTimeout(() => setStatus('', ''), 2500);
 }
 
 // ══════════════════════════════════════════
