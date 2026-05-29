@@ -875,7 +875,8 @@
         </div>
         <div class="modal-field">
           <label>Category</label>
-          <input type="text" id="f-category" placeholder="e.g. Brewery, Café…" />
+          <input type="text" id="f-category" list="category-datalist" placeholder="Select or type a new category…" autocomplete="off" />
+          <datalist id="category-datalist"></datalist>
         </div>
         <div class="modal-field">
           <label>Lat, Lon</label>
@@ -1292,6 +1293,11 @@ function resetModal() {
   document.getElementById('geo-results').classList.remove('visible');
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('modal-submit-btn').disabled = false;
+
+  // Populate category suggestions from existing data
+  const categories = [...new Set(rows.map(r => r['Category']).filter(Boolean))].sort();
+  document.getElementById('category-datalist').innerHTML =
+    categories.map(c => `<option value="${escAttr(c)}">`).join('');
 }
 
 function openAddModal() {
