@@ -579,6 +579,67 @@
       display: none;
     }
 
+    /* geocode lookup */
+    .latlon-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .latlon-input-wrap {
+      display: flex;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .latlon-input-wrap input { flex: 1; }
+
+    .btn-lookup {
+      padding: 9px 12px;
+      background: var(--navy-light);
+      border: 1px solid var(--border-lit);
+      border-radius: 6px;
+      color: var(--cream-dim);
+      font-size: 0.78rem;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+
+    .btn-lookup:hover  { border-color: var(--amber); color: var(--amber); }
+    .btn-lookup:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .geo-results {
+      width: 100%;
+      background: var(--navy-light);
+      border: 1px solid var(--border-lit);
+      border-radius: 6px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .geo-results.visible { display: block; }
+
+    .geo-result-item {
+      padding: 9px 12px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      color: var(--cream-dim);
+      line-height: 1.4;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .geo-result-item:last-child { border-bottom: none; }
+    .geo-result-item:hover { background: var(--navy-mid); color: var(--cream); }
+
+    .geo-result-name { font-weight: 600; color: var(--cream); }
+    .geo-result-addr { font-size: 0.74rem; color: var(--muted); margin-top: 2px; }
+    .geo-no-results  { padding: 10px 12px; font-size: 0.8rem; color: var(--muted); }
+
     /* Leaflet popup dark theme */
     .leaflet-popup-content-wrapper {
       background: var(--navy-mid) !important;
@@ -723,7 +784,13 @@
         </div>
         <div class="modal-field">
           <label>Lat, Lon</label>
-          <input type="text" id="f-latlon" placeholder="47.676, -122.384" />
+          <div class="latlon-row">
+            <div class="latlon-input-wrap">
+              <input type="text" id="f-latlon" placeholder="47.676, -122.384" />
+              <button class="btn-lookup" id="geo-btn" type="button" onclick="geocodeLookup()">🔍 Find</button>
+            </div>
+            <div class="geo-results" id="geo-results"></div>
+          </div>
         </div>
         <div class="modal-field">
           <label>Visited</label>
@@ -1143,6 +1210,74 @@ function showModalError(msg) {
   const el = document.getElementById('modal-error');
   el.textContent = msg;
   el.style.display = 'block';
+}
+
+// ══════════════════════════════════════════
+// GEOCODING — Nominatim, biased to Ballard
+// ══════════════════════════════════════════
+// Bounding box loosely around greater Ballard / NW Seattle
+const GEO_VIEWBOX = '-122.42,47.70,-122.33,47.63';
+
+async function geocodeLookup() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) {
+    showModalError('Enter a business name first, then click Find.');
+    return;
+  }
+
+  const btn     = document.getElementById('geo-btn');
+  const results = document.getElementById('geo-results');
+
+  btn.disabled = true;
+  btn.textContent = '…';
+  results.classList.remove('visible');
+  results.innerHTML = '';
+  document.getElementById('modal-error').style.display = 'none';
+
+  const params = new URLSearchParams({
+    q:            name + ' Seattle WA',
+    format:       'jsonv2',
+    limit:        '5',
+    viewbox:      GEO_VIEWBOX,
+    bounded:      '0',       // allow results outside box if nothing found within
+    countrycodes: 'us',
+    addressdetails: '1',
+  });
+
+  try {
+    const res  = await fetch('https://nominatim.openstreetmap.org/search?' + params, {
+      headers: { 'Accept-Language': 'en' }
+    });
+    const data = await res.json();
+
+    if (!data.length) {
+      results.innerHTML = '<div class="geo-no-results">No results found — try a shorter or different name.</div>';
+    } else {
+      results.innerHTML = data.map((place, i) => {
+        const displayName = place.name || place.display_name.split(',')[0];
+        const addr = place.display_name;
+        return `<div class="geo-result-item" onclick="selectGeoResult(${place.lat}, ${place.lon})">
+          <div class="geo-result-name">${escHtml(displayName)}</div>
+          <div class="geo-result-addr">${escHtml(addr)}</div>
+        </div>`;
+      }).join('');
+    }
+
+    results.classList.add('visible');
+  } catch (e) {
+    showModalError('Lookup failed — check your connection and try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Find';
+  }
+}
+
+function selectGeoResult(lat, lon) {
+  const rounded = parseFloat(lat).toFixed(6) + ', ' + parseFloat(lon).toFixed(6);
+  document.getElementById('f-latlon').value = rounded;
+  const results = document.getElementById('geo-results');
+  results.classList.remove('visible');
+  results.innerHTML = '';
 }
 </script>
 </body>
