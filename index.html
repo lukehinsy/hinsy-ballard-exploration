@@ -898,7 +898,7 @@
         </div>
         <div class="modal-field">
           <label>Category</label>
-          <input type="text" id="f-category" list="category-datalist" placeholder="Select or type a new category…" autocomplete="off" />
+          <input type="text" id="f-category" list="category-datalist" placeholder="e.g. Brewery, Bar, Dog Friendly" autocomplete="off" />
           <datalist id="category-datalist"></datalist>
         </div>
         <div class="modal-field">
@@ -1074,7 +1074,7 @@ function buildPopup(row) {
   const lukeReview = row['Luke Review'] || '';
   const visited    = row['Visited'] === 'Y';
   const dogFriendly = row['Dog Friendly'];
-  const category   = row['Category'] || '';
+  const category   = (row['Category'] || []).join(', ');
   return `
     <div style="min-width:190px;font-family:'Inter',sans-serif">
       <div style="font-family:'Playfair Display',Georgia,serif;font-size:1rem;font-weight:700;color:#e8dcc8;margin-bottom:2px">
@@ -1169,6 +1169,11 @@ function getFilteredRows() {
       // Y/N selects: exact match
       } else if (field === 'Visited' || field === 'Dog Friendly') {
         if ((cell || '') !== val) return false;
+      // Category (text[]): any keyword matches
+      } else if (field === 'Category') {
+        const kw = val.toLowerCase();
+        const tags = Array.isArray(cell) ? cell : [];
+        if (!tags.some(t => t.toLowerCase().includes(kw))) return false;
       // Text fields: case-insensitive contains
       } else {
         if (!String(cell || '').toLowerCase().includes(val.toLowerCase())) return false;
@@ -1209,7 +1214,7 @@ function renderTable() {
 
     tr.innerHTML = `
       <td>${escHtml(row['Name'] || '')}</td>
-      <td>${row['Category'] ? escHtml(row['Category']) : '<span class="cell-nil">—</span>'}</td>
+      <td>${row['Category']?.length ? escHtml(row['Category'].join(', ')) : '<span class="cell-nil">—</span>'}</td>
       <td style="text-align:center">${yn(row['Visited'])}</td>
       <td style="text-align:center">${yn(row['Dog Friendly'])}</td>
       <td style="text-align:center">${rating(row['Mira Rating'])}</td>
@@ -1233,7 +1238,7 @@ async function saveRow(row) {
     .from(TABLE_NAME)
     .update({
       'Name':         row['Name'],
-      'Category':     row['Category'] || null,
+      'Category':     (row['Category']?.length) ? row['Category'] : null,
       'latlon':       row['latlon'] || null,
       'Visited':      row['Visited'] || null,
       'Dog Friendly': row['Dog Friendly'] || null,
@@ -1335,8 +1340,8 @@ function resetModal() {
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('modal-submit-btn').disabled = false;
 
-  // Populate category suggestions from existing data
-  const categories = [...new Set(rows.map(r => r['Category']).filter(Boolean))].sort();
+  // Populate category suggestions — flatten all keyword arrays into unique sorted values
+  const categories = [...new Set(rows.flatMap(r => Array.isArray(r['Category']) ? r['Category'] : []).filter(Boolean))].sort();
   document.getElementById('category-datalist').innerHTML =
     categories.map(c => `<option value="${escAttr(c)}">`).join('');
 }
@@ -1355,7 +1360,7 @@ function openEditModal(idx) {
   const row = rows[idx];
   resetModal();
   document.getElementById('f-name').value         = row['Name']         || '';
-  document.getElementById('f-category').value     = row['Category']     || '';
+  document.getElementById('f-category').value     = (row['Category'] || []).join(', ');
   document.getElementById('f-latlon').value        = row['latlon']       || '';
   document.getElementById('f-visited').value       = row['Visited']      || '';
   document.getElementById('f-dog').value           = row['Dog Friendly'] || '';
@@ -1389,7 +1394,7 @@ async function submitNewBusiness() {
   const lukeRating = document.getElementById('f-luke-rating').value;
   const payload = {
     'Name':         name,
-    'Category':     document.getElementById('f-category').value.trim() || null,
+    'Category':     (() => { const tags = document.getElementById('f-category').value.split(',').map(t => t.trim()).filter(Boolean); return tags.length ? tags : null; })(),
     'latlon':       document.getElementById('f-latlon').value.trim() || null,
     'Visited':      document.getElementById('f-visited').value || null,
     'Dog Friendly': document.getElementById('f-dog').value || null,
