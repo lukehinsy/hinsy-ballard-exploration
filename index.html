@@ -434,6 +434,151 @@
       letter-spacing: 0.04em;
     }
 
+    /* ════════════════════════════
+       ADD BUSINESS MODAL
+    ════════════════════════════ */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,15,22,0.75);
+      backdrop-filter: blur(4px);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: var(--navy-mid);
+      border: 1px solid var(--border-lit);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      position: relative;
+    }
+
+    .modal::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--amber), var(--amber-glow), var(--amber));
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 24px 0;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--cream);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1.3rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      line-height: 1;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .modal-close:hover { color: var(--cream); background: var(--navy-light); }
+
+    .modal-body { padding: 0 24px 24px; }
+
+    .modal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .modal-field { display: flex; flex-direction: column; gap: 6px; }
+    .modal-field.full { grid-column: 1 / -1; }
+
+    .modal-field label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--cream-dim);
+    }
+
+    .modal-field input,
+    .modal-field select,
+    .modal-field textarea {
+      padding: 9px 12px;
+      background: var(--navy-light);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.875rem;
+      color: var(--cream);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .modal-field input::placeholder,
+    .modal-field textarea::placeholder { color: var(--muted); }
+
+    .modal-field input:focus,
+    .modal-field select:focus,
+    .modal-field textarea:focus {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px rgba(200,134,10,0.12);
+    }
+
+    .modal-field select option { background: var(--navy-mid); }
+    .modal-field textarea { resize: vertical; min-height: 68px; }
+
+    .modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .btn-add {
+      padding: 7px 18px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      background: var(--amber);
+      color: var(--navy);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-add:hover { background: var(--amber-glow); }
+    .btn-add:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .modal-error {
+      color: #e07060;
+      font-size: 0.8rem;
+      margin-right: auto;
+      display: none;
+    }
+
     /* Leaflet popup dark theme */
     .leaflet-popup-content-wrapper {
       background: var(--navy-mid) !important;
@@ -530,6 +675,7 @@
       <span class="section-title">Businesses</span>
       <div class="section-rule"></div>
       <span class="save-status" id="save-status"></span>
+      <button class="btn-add" onclick="openAddModal()" style="margin-left:14px">+ Add Business</button>
     </div>
 
     <div class="table-wrap">
@@ -553,6 +699,73 @@
       </table>
     </div>
   </main>
+</div>
+
+<!-- ══════════════════════════════════════════
+     ADD BUSINESS MODAL
+══════════════════════════════════════════ -->
+<div class="modal-backdrop" id="add-modal" onclick="onBackdropClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Add a Business</span>
+      <button class="modal-close" onclick="closeAddModal()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="modal-grid">
+        <div class="modal-field full">
+          <label>Name *</label>
+          <input type="text" id="f-name" placeholder="e.g. Stoup Brewing" />
+        </div>
+        <div class="modal-field">
+          <label>Category</label>
+          <input type="text" id="f-category" placeholder="e.g. Brewery, Café…" />
+        </div>
+        <div class="modal-field">
+          <label>Lat, Lon</label>
+          <input type="text" id="f-latlon" placeholder="47.676, -122.384" />
+        </div>
+        <div class="modal-field">
+          <label>Visited</label>
+          <select id="f-visited">
+            <option value="">—</option>
+            <option value="Y">Y</option>
+            <option value="N">N</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>Dog Friendly</label>
+          <select id="f-dog">
+            <option value="">—</option>
+            <option value="Y">Y</option>
+            <option value="N">N</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>Mira Rating</label>
+          <input type="number" id="f-mira-rating" min="0" max="10" step="0.1" placeholder="0 – 10" />
+        </div>
+        <div class="modal-field">
+          <label>Luke Rating</label>
+          <input type="number" id="f-luke-rating" min="0" max="10" step="0.1" placeholder="0 – 10" />
+        </div>
+        <div class="modal-field full">
+          <label>Mira Review</label>
+          <textarea id="f-mira-review" placeholder="Mira's thoughts…"></textarea>
+        </div>
+        <div class="modal-field full">
+          <label>Luke Review</label>
+          <textarea id="f-luke-review" placeholder="Luke's thoughts…"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <span class="modal-error" id="modal-error"></span>
+      <button class="btn-sm" onclick="closeAddModal()">Cancel</button>
+      <button class="btn-add" id="modal-submit-btn" onclick="submitNewBusiness()">Add Business</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -842,6 +1055,94 @@ function escHtml(str) {
 
 function escAttr(str) {
   return String(str).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ══════════════════════════════════════════
+// ADD BUSINESS MODAL
+// ══════════════════════════════════════════
+function openAddModal() {
+  // Reset form
+  ['f-name','f-category','f-latlon','f-mira-review','f-luke-review'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  ['f-visited','f-dog'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  ['f-mira-rating','f-luke-rating'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('modal-error').style.display = 'none';
+  document.getElementById('modal-submit-btn').disabled = false;
+  document.getElementById('modal-submit-btn').textContent = 'Add Business';
+  document.getElementById('add-modal').classList.add('open');
+  document.getElementById('f-name').focus();
+}
+
+function closeAddModal() {
+  document.getElementById('add-modal').classList.remove('open');
+}
+
+function onBackdropClick(e) {
+  if (e.target === document.getElementById('add-modal')) closeAddModal();
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeAddModal();
+});
+
+async function submitNewBusiness() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) {
+    showModalError('Name is required.');
+    return;
+  }
+
+  const miraRating = document.getElementById('f-mira-rating').value;
+  const lukeRating = document.getElementById('f-luke-rating').value;
+
+  const payload = {
+    'Name':         name,
+    'Category':     document.getElementById('f-category').value.trim() || null,
+    'latlon':       document.getElementById('f-latlon').value.trim() || null,
+    'Visited':      document.getElementById('f-visited').value || null,
+    'Dog Friendly': document.getElementById('f-dog').value || null,
+    'Mira Rating':  miraRating !== '' ? parseFloat(miraRating) : null,
+    'Luke Rating':  lukeRating !== '' ? parseFloat(lukeRating) : null,
+    'Mira Review':  document.getElementById('f-mira-review').value.trim() || null,
+    'Luke Review':  document.getElementById('f-luke-review').value.trim() || null,
+  };
+
+  const btn = document.getElementById('modal-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+
+  const { data, error } = await db
+    .from(TABLE_NAME)
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    showModalError(error.message);
+    btn.disabled = false;
+    btn.textContent = 'Add Business';
+    return;
+  }
+
+  // Add to local state and re-render
+  rows.push(data);
+  rows.sort((a, b) => (a['Name'] || '').localeCompare(b['Name'] || ''));
+  closeAddModal();
+  renderTable();
+  renderMarkers();
+  setStatus('saved', 'Added ✓');
+  setTimeout(() => setStatus('', ''), 2500);
+}
+
+function showModalError(msg) {
+  const el = document.getElementById('modal-error');
+  el.textContent = msg;
+  el.style.display = 'block';
 }
 </script>
 </body>
