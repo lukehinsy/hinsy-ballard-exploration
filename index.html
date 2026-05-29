@@ -275,6 +275,28 @@
       backdrop-filter: blur(6px);
     }
 
+    .map-reset-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 999;
+      background: rgba(20,28,38,0.88);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 12px;
+      backdrop-filter: blur(6px);
+      color: var(--cream-dim);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .map-reset-btn:hover { background: rgba(200,134,10,0.25); color: var(--amber-glow); border-color: var(--amber-dim); }
+    .map-reset-btn.visible { display: block; }
+
     .legend-item {
       display: flex;
       align-items: center;
@@ -805,6 +827,7 @@
           Not Yet
         </div>
       </div>
+      <button class="map-reset-btn" id="map-reset-btn" onclick="resetMapView()">⌂ Reset View</button>
     </div>
 
     <!-- Table -->
@@ -1013,7 +1036,7 @@ function showAuth() {
 // MAP
 // ══════════════════════════════════════════
 function initMap() {
-  map = L.map('map').setView([47.6762, -122.3839], 14);
+  map = L.map('map').setView(MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19
@@ -1251,16 +1274,34 @@ function makeHighlightIcon() {
   });
 }
 
+const MAP_DEFAULT_CENTER = [47.6762, -122.3839];
+const MAP_DEFAULT_ZOOM   = 14;
+
 function highlightOnMap(rowId) {
   const row    = rows.find(r => r.id === rowId);
   const marker = markers[rowId];
   if (!row || !marker) return;
   const pos = parseLatLon(row['latlon']);
   if (!pos) return;
-  map.flyTo([pos.lat, pos.lon], 17, { duration: 0.9 });
+
+  // Offset the fly-to center so the marker lands in the lower ~25% of the map
+  // rather than dead-center, keeping the popup fully visible above it.
+  const zoom = 17;
+  const targetPx = map.project(L.latLng(pos.lat, pos.lon), zoom);
+  const offsetPx  = targetPx.subtract([0, map.getSize().y * 0.25]);
+  const centerLatLng = map.unproject(offsetPx, zoom);
+
+  map.flyTo(centerLatLng, zoom, { duration: 0.9 });
   marker.setIcon(makeHighlightIcon());
   marker.openPopup();
   setTimeout(() => marker.setIcon(makeIcon(row['Visited'])), 2500);
+
+  document.getElementById('map-reset-btn').classList.add('visible');
+}
+
+function resetMapView() {
+  map.flyTo(MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM, { duration: 0.9 });
+  document.getElementById('map-reset-btn').classList.remove('visible');
 }
 
 // ══════════════════════════════════════════
