@@ -769,7 +769,7 @@ function renderTable() {
 // ══════════════════════════════════════════
 // SAVE
 // ══════════════════════════════════════════
-let saveTimer = null;
+const saveTimers = {};
 
 async function onCellChange(e) {
   const el    = e.target;
@@ -780,9 +780,10 @@ async function onCellChange(e) {
 
   if (['latlon','Visited','Name','Mira Rating','Luke Rating','Mira Review','Luke Review','Dog Friendly'].includes(field)) updateMarker(rows[idx]);
 
-  clearTimeout(saveTimer);
+  const rowId = rows[idx].id;
+  clearTimeout(saveTimers[rowId]);
   setStatus('saving', 'Saving…');
-  saveTimer = setTimeout(() => saveRow(rows[idx]), 600);
+  saveTimers[rowId] = setTimeout(() => saveRow(rows[idx]), 600);
 }
 
 async function saveRow(row) {
