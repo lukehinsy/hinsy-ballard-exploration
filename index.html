@@ -566,9 +566,9 @@ const TABLE_NAME    = 'BallardBusinesses';
 // ══════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════
-let supabase;
+let db;
 try {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 } catch (e) {
   document.getElementById('auth-error').textContent = 'Init error: ' + e.message;
   document.getElementById('auth-error').style.display = 'block';
@@ -576,11 +576,11 @@ try {
 
 let map, rows = [], markers = {};
 
-supabase.auth.getSession().then(({ data: { session } }) => {
+db.auth.getSession().then(({ data: { session } }) => {
   if (session) showApp(session.user);
 });
 
-supabase.auth.onAuthStateChange((_event, session) => {
+db.auth.onAuthStateChange((_event, session) => {
   if (session) showApp(session.user);
   else         showAuth();
 });
@@ -598,7 +598,7 @@ async function signIn() {
   btn.disabled = true;
   btn.textContent = 'Signing in…';
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await db.auth.signInWithPassword({ email, password });
 
   btn.disabled = false;
   btn.textContent = 'Sign In';
@@ -609,7 +609,7 @@ async function signIn() {
   }
 }
 
-async function signOut() { await supabase.auth.signOut(); }
+async function signOut() { await db.auth.signOut(); }
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && document.getElementById('auth-screen').style.display !== 'none') signIn();
@@ -720,7 +720,7 @@ async function loadData() {
   const tbody = document.getElementById('table-body');
   tbody.innerHTML = '<tr><td colspan="9" class="table-placeholder">Loading spots…</td></tr>';
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from(TABLE_NAME)
     .select('*')
     .order('Name', { ascending: true });
@@ -793,7 +793,7 @@ async function onCellChange(e) {
 }
 
 async function saveRow(row) {
-  const { error } = await supabase
+  const { error } = await db
     .from(TABLE_NAME)
     .update({
       'Name':         row['Name'],
