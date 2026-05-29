@@ -426,6 +426,47 @@
 
     .rating-cell input { text-align: center; }
 
+    /* filter row */
+    thead tr.filter-row th {
+      padding: 4px 16px 8px;
+      background: var(--navy-light);
+      border-bottom: 2px solid var(--border);
+    }
+
+    thead tr.filter-row input,
+    thead tr.filter-row select {
+      width: 100%;
+      padding: 5px 8px;
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.75rem;
+      color: var(--cream);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    thead tr.filter-row input::placeholder { color: var(--border-lit); }
+
+    thead tr.filter-row input:focus,
+    thead tr.filter-row select:focus { border-color: var(--amber); }
+
+    thead tr.filter-row select option { background: var(--navy-mid); }
+
+    /* legend interactive */
+    .legend-item {
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 3px 6px;
+      transition: opacity 0.2s, background 0.15s;
+      user-select: none;
+    }
+
+    .legend-item:hover { background: rgba(255,255,255,0.05); }
+    .legend-item.active { background: rgba(255,255,255,0.1); outline: 1px solid var(--border-lit); }
+    .legend-item.dimmed { opacity: 0.35; }
+
     .table-placeholder {
       padding: 48px;
       text-align: center;
@@ -720,11 +761,11 @@
     <div class="map-wrap">
       <div id="map"></div>
       <div class="map-legend">
-        <div class="legend-item">
+        <div class="legend-item" id="legend-visited" onclick="toggleLegendFilter('Y')">
           <div class="legend-dot" style="background:var(--green)"></div>
           Visited
         </div>
-        <div class="legend-item">
+        <div class="legend-item" id="legend-notyet" onclick="toggleLegendFilter('N')">
           <div class="legend-dot" style="background:var(--red)"></div>
           Not Yet
         </div>
@@ -745,7 +786,6 @@
           <tr>
             <th>Name</th>
             <th>Category</th>
-            <th>Lat, Lon</th>
             <th>Visited</th>
             <th>Dog Friendly</th>
             <th>Mira Rating</th>
@@ -753,9 +793,31 @@
             <th>Luke Rating</th>
             <th>Luke Review</th>
           </tr>
+          <tr class="filter-row">
+            <th><input type="text"   data-filter="Name"         placeholder="Filter…" /></th>
+            <th><input type="text"   data-filter="Category"     placeholder="Filter…" /></th>
+            <th>
+              <select data-filter="Visited">
+                <option value="">All</option>
+                <option value="Y">Y</option>
+                <option value="N">N</option>
+              </select>
+            </th>
+            <th>
+              <select data-filter="Dog Friendly">
+                <option value="">All</option>
+                <option value="Y">Y</option>
+                <option value="N">N</option>
+              </select>
+            </th>
+            <th><input type="number" data-filter="Mira Rating"  placeholder="≥" step="0.1" min="0" max="10" /></th>
+            <th><input type="text"   data-filter="Mira Review"  placeholder="Filter…" /></th>
+            <th><input type="number" data-filter="Luke Rating"  placeholder="≥" step="0.1" min="0" max="10" /></th>
+            <th><input type="text"   data-filter="Luke Review"  placeholder="Filter…" /></th>
+          </tr>
         </thead>
         <tbody id="table-body">
-          <tr><td colspan="9" class="table-placeholder">Loading…</td></tr>
+          <tr><td colspan="8" class="table-placeholder">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -855,6 +917,8 @@ try {
 }
 
 let map, rows = [], markers = {};
+let filters      = {};   // { fieldName: filterValue }
+let legendFilter = null; // 'Y' | 'N' | null
 
 db.auth.getSession().then(({ data: { session } }) => {
   if (session) showApp(session.user);
@@ -991,6 +1055,7 @@ function renderMarkers() {
       .bindPopup(buildPopup(row))
       .addTo(map);
   });
+  applyLegendHighlight();
 }
 
 // ══════════════════════════════════════════
@@ -998,7 +1063,7 @@ function renderMarkers() {
 // ══════════════════════════════════════════
 async function loadData() {
   const tbody = document.getElementById('table-body');
-  tbody.innerHTML = '<tr><td colspan="9" class="table-placeholder">Loading spots…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" class="table-placeholder">Loading spots…</td></tr>';
 
   const { data, error } = await db
     .from(TABLE_NAME)
@@ -1006,29 +1071,72 @@ async function loadData() {
     .order('Name', { ascending: true });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="9" class="table-placeholder" style="color:#e07060">Error: ${escHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="table-placeholder" style="color:#e07060">Error: ${escHtml(error.message)}</td></tr>`;
     return;
   }
 
   rows = data || [];
   if (rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="table-placeholder">No spots found — add some to Supabase!</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="table-placeholder">No spots found — add some to Supabase!</td></tr>';
     return;
   }
 
+  attachFilterListeners();
   renderTable();
   renderMarkers();
+}
+
+// ══════════════════════════════════════════
+// FILTERS
+// ══════════════════════════════════════════
+function attachFilterListeners() {
+  document.querySelectorAll('.filter-row [data-filter]').forEach(el => {
+    el.addEventListener('input',  onFilterChange);
+    el.addEventListener('change', onFilterChange);
+  });
+}
+
+function onFilterChange(e) {
+  filters[e.target.dataset.filter] = e.target.value;
+  renderTable();
+}
+
+function getFilteredRows() {
+  return rows.filter(row => {
+    for (const [field, val] of Object.entries(filters)) {
+      if (!val) continue;
+      const cell = row[field];
+      // Rating fields: minimum threshold
+      if (field === 'Mira Rating' || field === 'Luke Rating') {
+        if (cell === null || cell === undefined || parseFloat(cell) < parseFloat(val)) return false;
+      // Y/N selects: exact match
+      } else if (field === 'Visited' || field === 'Dog Friendly') {
+        if ((cell || '') !== val) return false;
+      // Text fields: case-insensitive contains
+      } else {
+        if (!String(cell || '').toLowerCase().includes(val.toLowerCase())) return false;
+      }
+    }
+    return true;
+  });
 }
 
 // ══════════════════════════════════════════
 // TABLE
 // ══════════════════════════════════════════
 function renderTable() {
-  const tbody = document.getElementById('table-body');
+  const tbody   = document.getElementById('table-body');
+  const visible = getFilteredRows();
   tbody.innerHTML = '';
 
-  rows.forEach((row, idx) => {
-    const tr = document.createElement('tr');
+  if (visible.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="table-placeholder">No matches — try clearing a filter.</td></tr>';
+    return;
+  }
+
+  visible.forEach((row) => {
+    const idx = rows.indexOf(row);
+    const tr  = document.createElement('tr');
     tr.dataset.id = row.id;
     const ynSelect = (field) => `
       <select data-field="${field}" data-idx="${idx}">
@@ -1039,7 +1147,6 @@ function renderTable() {
     tr.innerHTML = `
       <td><input type="text" value="${escAttr(row['Name'] || '')}"         data-field="Name"        data-idx="${idx}" /></td>
       <td><input type="text" value="${escAttr(row['Category'] || '')}"     data-field="Category"    data-idx="${idx}" /></td>
-      <td><input type="text" value="${escAttr(row['latlon'] || '')}"       data-field="latlon"      data-idx="${idx}" placeholder="47.676, -122.384" /></td>
       <td>${ynSelect('Visited')}</td>
       <td>${ynSelect('Dog Friendly')}</td>
       <td class="rating-cell"><input type="number" step="0.1" min="0" max="10" value="${escAttr(row['Mira Rating'] ?? '')}" data-field="Mira Rating" data-idx="${idx}" placeholder="—" /></td>
@@ -1204,6 +1311,42 @@ async function submitNewBusiness() {
   renderMarkers();
   setStatus('saved', 'Added ✓');
   setTimeout(() => setStatus('', ''), 2500);
+}
+
+// ══════════════════════════════════════════
+// LEGEND FILTER
+// ══════════════════════════════════════════
+function toggleLegendFilter(value) {
+  legendFilter = (legendFilter === value) ? null : value;
+
+  const vEl = document.getElementById('legend-visited');
+  const nEl = document.getElementById('legend-notyet');
+
+  // Reset both
+  vEl.classList.remove('active', 'dimmed');
+  nEl.classList.remove('active', 'dimmed');
+
+  if (legendFilter === 'Y') {
+    vEl.classList.add('active');
+    nEl.classList.add('dimmed');
+  } else if (legendFilter === 'N') {
+    nEl.classList.add('active');
+    vEl.classList.add('dimmed');
+  }
+
+  applyLegendHighlight();
+}
+
+function applyLegendHighlight() {
+  Object.entries(markers).forEach(([id, marker]) => {
+    const row = rows.find(r => String(r.id) === String(id));
+    if (!row) return;
+    if (legendFilter === null) {
+      marker.setOpacity(1);
+    } else {
+      marker.setOpacity(row['Visited'] === legendFilter ? 1 : 0.15);
+    }
+  });
 }
 
 function showModalError(msg) {
