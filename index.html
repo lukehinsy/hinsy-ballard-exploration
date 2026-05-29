@@ -844,6 +844,7 @@
           <tr>
             <th>Name</th>
             <th>Category</th>
+            <th>Notes</th>
             <th>Visited</th>
             <th>Dog Friendly</th>
             <th>Mira ★</th>
@@ -853,6 +854,7 @@
           <tr class="filter-row">
             <th><input type="text" data-filter="Name"         placeholder="Filter…" /></th>
             <th><input type="text" data-filter="Category"     placeholder="Filter…" /></th>
+            <th><input type="text" data-filter="Notes"        placeholder="Filter…" /></th>
             <th>
               <select data-filter="Visited">
                 <option value="">All</option>
@@ -873,7 +875,7 @@
           </tr>
         </thead>
         <tbody id="table-body">
-          <tr><td colspan="7" class="table-placeholder">Loading…</td></tr>
+          <tr><td colspan="8" class="table-placeholder">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -900,6 +902,10 @@
           <label>Category</label>
           <input type="text" id="f-category" list="category-datalist" placeholder="e.g. Brewery, Bar, Dog Friendly" autocomplete="off" />
           <datalist id="category-datalist"></datalist>
+        </div>
+        <div class="modal-field full">
+          <label>Notes</label>
+          <textarea id="f-notes" placeholder="Quick notes…" style="min-height:52px"></textarea>
         </div>
         <div class="modal-field">
           <label>Lat, Lon</label>
@@ -1215,6 +1221,7 @@ function renderTable() {
     tr.innerHTML = `
       <td>${escHtml(row['Name'] || '')}</td>
       <td>${row['Category']?.length ? escHtml(row['Category'].join(', ')) : '<span class="cell-nil">—</span>'}</td>
+      <td>${row['Notes'] ? escHtml(row['Notes']) : '<span class="cell-nil">—</span>'}</td>
       <td style="text-align:center">${yn(row['Visited'])}</td>
       <td style="text-align:center">${yn(row['Dog Friendly'])}</td>
       <td style="text-align:center">${rating(row['Mira Rating'])}</td>
@@ -1244,6 +1251,7 @@ async function saveRow(row) {
       'Dog Friendly': row['Dog Friendly'] || null,
       'Mira Rating':  (row['Mira Rating'] !== '' && row['Mira Rating'] !== null) ? row['Mira Rating'] : null,
       'Luke Rating':  (row['Luke Rating'] !== '' && row['Luke Rating'] !== null) ? row['Luke Rating'] : null,
+      'Notes':        row['Notes']       || null,
       'Mira Review':  row['Mira Review'] || null,
       'Luke Review':  row['Luke Review'] || null,
     })
@@ -1334,7 +1342,7 @@ function escAttr(str) {
 let currentEditIdx = null; // null = adding, number = editing
 
 function resetModal() {
-  ['f-name','f-category','f-latlon','f-mira-review','f-luke-review'].forEach(id => document.getElementById(id).value = '');
+  ['f-name','f-category','f-notes','f-latlon','f-mira-review','f-luke-review'].forEach(id => document.getElementById(id).value = '');
   ['f-visited','f-dog','f-mira-rating','f-luke-rating'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('geo-results').classList.remove('visible');
   document.getElementById('modal-error').style.display = 'none';
@@ -1367,6 +1375,7 @@ function openEditModal(idx) {
   document.getElementById('f-mira-rating').value  = row['Mira Rating']  ?? '';
   document.getElementById('f-luke-rating').value  = row['Luke Rating']  ?? '';
   document.getElementById('f-mira-review').value  = row['Mira Review']  || '';
+  document.getElementById('f-notes').value         = row['Notes']        || '';
   document.getElementById('f-luke-review').value  = row['Luke Review']  || '';
   document.querySelector('.modal-title').textContent = 'Edit Business';
   document.getElementById('modal-submit-btn').textContent = 'Save Changes';
@@ -1400,6 +1409,7 @@ async function submitNewBusiness() {
     'Dog Friendly': document.getElementById('f-dog').value || null,
     'Mira Rating':  miraRating !== '' ? parseFloat(miraRating) : null,
     'Luke Rating':  lukeRating !== '' ? parseFloat(lukeRating) : null,
+    'Notes':        document.getElementById('f-notes').value.trim()       || null,
     'Mira Review':  document.getElementById('f-mira-review').value.trim() || null,
     'Luke Review':  document.getElementById('f-luke-review').value.trim() || null,
   };
